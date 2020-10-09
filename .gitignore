@@ -12,3 +12,9 @@
 /build/
 /dist/
 /MANIFEST
+
+# Temp files
+*~
+
+# Coverage for https://github.com/ryanluker/vscode-coverage-gutters
+cov.xml

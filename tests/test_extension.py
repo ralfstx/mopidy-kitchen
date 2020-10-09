@@ -1,5 +1,6 @@
+from mopidy import config
+
 from mopidy_kitchen import Extension
-from mopidy_kitchen import frontend as frontend_lib
 
 
 def test_get_default_config():
@@ -16,9 +17,5 @@ def test_get_config_schema():
 
     schema = ext.get_config_schema()
 
-    # TODO Test the content of your config schema
-    # assert "username" in schema
-    # assert "password" in schema
-
-
-# TODO Write more tests
+    assert "media_dir" in schema
+    assert type(schema.get("media_dir")) == config.Path
