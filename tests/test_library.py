@@ -1,11 +1,11 @@
 import logging
 
-from mopidy.models import Album, Ref, SearchResult, Track
+from mopidy.models import Album, Image, Ref, SearchResult, Track
 
 from mopidy_kitchen.library import KitchenLibraryProvider
-from mopidy_kitchen.uri import AlbumsUri
+from mopidy_kitchen.uri import AlbumsUri, parse_uri
 
-from .helpers import EXAMPLE_ALBUM, make_album, make_config
+from .helpers import EXAMPLE_ALBUM, make_album, make_config, make_image
 
 
 def test_detects_duplicates(tmp_path, caplog):
@@ -250,6 +250,72 @@ def test_search_match_trackname(tmp_path, caplog):
     assert result.uri == "kitchen:search?"
     assert result.albums == ()
     assert [track.name for track in result.tracks] == ["The Morning"]
+
+
+# == get_images ==
+
+
+def test_get_images_empty(tmp_path, caplog):
+    provider = KitchenLibraryProvider(backend={}, config=make_config(tmp_path))
+
+    result = provider.get_images([])
+
+    assert caplog.text == ""
+    assert result == {}
+
+
+def test_get_images_for_album_without_image(tmp_path, caplog):
+    make_album(tmp_path / "media" / "a1", EXAMPLE_ALBUM)
+    provider = KitchenLibraryProvider(backend={}, config=make_config(tmp_path))
+    album_uri = provider.browse(str(AlbumsUri()))[0].uri
+
+    result = provider.get_images([album_uri])
+
+    assert caplog.text == ""
+    assert result == {}
+
+
+def test_get_images_for_album_with_image(tmp_path, caplog):
+    make_album(tmp_path / "media" / "a1", EXAMPLE_ALBUM)
+    make_image(tmp_path / "media" / "a1" / "cover.jpg")
+    provider = KitchenLibraryProvider(backend={}, config=make_config(tmp_path))
+    album_uri = provider.browse(str(AlbumsUri()))[0].uri
+    album_id = parse_uri(album_uri).album_id
+
+    result = provider.get_images([album_uri])
+
+    assert caplog.text == ""
+    assert result == {album_uri: [Image(uri=f"/kitchen/albums/{album_id}/cover.jpg")]}
+
+
+def test_get_images_for_track_with_image(tmp_path, caplog):
+    make_album(tmp_path / "media" / "a1", EXAMPLE_ALBUM)
+    make_image(tmp_path / "media" / "a1" / "cover.jpg")
+    provider = KitchenLibraryProvider(backend={}, config=make_config(tmp_path))
+    track_uri = provider.browse(str(AlbumsUri()))[0].uri + ":1:1"
+    album_id = parse_uri(track_uri).album_id
+
+    result = provider.get_images([track_uri])
+
+    assert caplog.text == ""
+    assert result == {track_uri: [Image(uri=f"/kitchen/albums/{album_id}/cover.jpg")]}
+
+
+def test_get_images_for_multiple_uris(tmp_path, caplog):
+    make_album(tmp_path / "media" / "a1", EXAMPLE_ALBUM)
+    make_image(tmp_path / "media" / "a1" / "cover.jpg")
+    provider = KitchenLibraryProvider(backend={}, config=make_config(tmp_path))
+    track1_uri = provider.browse(str(AlbumsUri()))[0].uri + ":1:1"
+    track2_uri = provider.browse(str(AlbumsUri()))[0].uri + ":1:2"
+    album_id = parse_uri(track1_uri).album_id
+
+    result = provider.get_images([track1_uri, track2_uri])
+
+    assert caplog.text == ""
+    assert result == {
+        track1_uri: [Image(uri=f"/kitchen/albums/{album_id}/cover.jpg")],
+        track2_uri: [Image(uri=f"/kitchen/albums/{album_id}/cover.jpg")],
+    }
 
 
 # == get_path ==

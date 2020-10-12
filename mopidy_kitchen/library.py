@@ -1,8 +1,9 @@
 import logging
 from pathlib import Path
+from typing import Mapping
 
 from mopidy import backend
-from mopidy.models import Album, Artist, Ref, SearchResult, Track
+from mopidy.models import Album, Artist, Image, Ref, SearchResult, Track
 
 from . import Extension
 from .album_index import AlbumIndex, AlbumIndexTrack
@@ -27,15 +28,19 @@ class KitchenLibraryProvider(backend.LibraryProvider):
 
     def __init__(self, backend, config):
         super().__init__(backend)
-        self._data_dir = Extension.get_data_dir(config)
+        self._albums_dir = Extension.get_albums_dir(config)
         self._config = config[Extension.ext_name]
-        media_dir = self._config["media_dir"]
-        albums = Scanner(Path(media_dir)).scan()
-        self._albums = {}
+        media_dir = Path(self._config["media_dir"])
+        albums = Scanner(media_dir).scan()
+        self._albums: Mapping[str, AlbumIndex] = {}
         for album in albums:
             album_id = make_hash(album.name)
             if album_id in self._albums:
                 logger.warning("Duplicate albums: '%s' and '%s'", album.path, self._albums[album_id].path)
+                continue
+            symlink_path = self._albums_dir / album_id
+            if not symlink_path.exists():
+                symlink_path.symlink_to(album.path)
             self._albums[album_id] = album
 
     # == browse ==
@@ -127,6 +132,22 @@ class KitchenLibraryProvider(backend.LibraryProvider):
                             tracks.append(_make_track(album_id, album, track))
         search_uri = str(SearchUri())
         return SearchResult(uri=search_uri, albums=albums, tracks=tracks)
+
+    # == get_images ==
+
+    def get_images(self, uris):
+        images = {}
+        for uri in uris:
+            kitchen_uri = parse_uri(uri)
+            if isinstance(kitchen_uri, (AlbumUri, AlbumTrackUri)):
+                album_id = kitchen_uri.album_id
+                album = self._albums.get(album_id)
+                if album:
+                    img_path = album.path / "cover.jpg"
+                    if img_path.exists():
+                        image_uri = f"/kitchen/albums/{album_id}/cover.jpg"
+                        images[uri] = [Image(uri=image_uri)]
+        return images
 
     # == get_path (extension) ==
 

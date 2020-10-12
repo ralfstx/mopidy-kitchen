@@ -20,6 +20,11 @@ def make_album(album_path: Path, index=None):
         f.write(index_json)
 
 
+def make_image(image_path: Path, data=None):
+    with open(image_path, mode="w") as f:
+        f.write(data or "")
+
+
 EXAMPLE_ALBUM = {
     "name": "John Doe - One Day",
     "artist": "John Doe",

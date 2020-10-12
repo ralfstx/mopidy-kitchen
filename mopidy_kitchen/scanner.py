@@ -1,5 +1,6 @@
 import logging
 from pathlib import Path
+from typing import List
 
 from .album_index import AlbumIndex, AlbumIndexError
 
@@ -10,7 +11,7 @@ class Scanner:
     def __init__(self, root_dir: Path):
         self._root = Path(root_dir).resolve()
 
-    def scan(self):
+    def scan(self) -> List[AlbumIndex]:
         if not self._root.is_dir():
             logger.error("Not a directory: %s", self._root)
             return []

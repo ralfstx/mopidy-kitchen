@@ -30,5 +30,13 @@ class Extension(ext.Extension):
 
     def setup(self, registry):
         from .backend import KitchenBackend
+        from .web import webapp_factory
 
         registry.add("backend", KitchenBackend)
+        registry.add("http:app", {"name": self.ext_name, "factory": webapp_factory})
+
+    @classmethod
+    def get_albums_dir(self, config):
+        albums_dir = self.get_data_dir(config) / "albums"
+        albums_dir.mkdir(parents=True, exist_ok=True)
+        return albums_dir
