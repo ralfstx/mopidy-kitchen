@@ -8,7 +8,7 @@ from mopidy.models import Album, Artist, Image, Ref, SearchResult, Track
 from . import Extension
 from .album_index import AlbumIndex, AlbumIndexTrack
 from .hash import make_hash
-from .scanner import Scanner
+from .scanner import read_album, scan_albums
 from .uri import (
     ROOT_URI,
     AlbumsUri,
@@ -30,18 +30,40 @@ class KitchenLibraryProvider(backend.LibraryProvider):
         super().__init__(backend)
         self._albums_dir = Extension.get_albums_dir(config)
         self._config = config[Extension.ext_name]
+        self._initialize()
+
+    def _initialize(self):
         media_dir = Path(self._config["media_dir"])
-        albums = Scanner(media_dir).scan()
+        albums = scan_albums(media_dir)
         self._albums: Mapping[str, AlbumIndex] = {}
         for album in albums:
             album_id = make_hash(album.name)
             if album_id in self._albums:
                 logger.warning("Duplicate albums: '%s' and '%s'", album.path, self._albums[album_id].path)
                 continue
-            symlink_path = self._albums_dir / album_id
-            if not symlink_path.exists():
-                symlink_path.symlink_to(album.path)
             self._albums[album_id] = album
+        logger.info("Found %d albums", len(self._albums))
+        self._cleanup_albums_dir()
+        self._create_symlinks()
+
+    def _cleanup_albums_dir(self):
+        logger.info("Cleaning up albums directory")
+        try:
+            files = self._albums_dir.glob("*")
+            for file in files:
+                file.unlink()
+        except IOError as err:
+            logger.warning("Error cleaning up albums directory: %s", err)
+
+    def _create_symlinks(self):
+        logger.info("Creating symlinks in albums directory")
+        try:
+            for album_id, album in self._albums.items():
+                symlink_path = self._albums_dir / album_id
+                if not symlink_path.exists():
+                    symlink_path.symlink_to(album.path)
+        except IOError as err:
+            logger.warning("Error creating symlinks in albums directory: %s", err)
 
     # == browse ==
 
@@ -148,6 +170,27 @@ class KitchenLibraryProvider(backend.LibraryProvider):
                         image_uri = f"/kitchen/albums/{album_id}/cover.jpg"
                         images[uri] = [Image(uri=image_uri)]
         return images
+
+    # == refresh ==
+
+    def refresh(self, uri):
+        if uri:
+            kitchen_uri = parse_uri(uri)
+            if isinstance(kitchen_uri, AlbumUri):
+                self._refresh_album(kitchen_uri.album_id)
+            elif isinstance(kitchen_uri, AlbumsUri):
+                self._initialize()
+        else:
+            self._initialize()
+
+    def _refresh_album(self, album_id):
+        album = self._albums.get(album_id)
+        if album:
+            del self._albums[album_id]
+            new_album = read_album(album.path)
+            if new_album:
+                album_id = make_hash(new_album.name)
+                self._albums[album_id] = new_album
 
     # == get_path (extension) ==
 
