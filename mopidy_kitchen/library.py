@@ -6,9 +6,9 @@ from mopidy import backend
 from mopidy.models import Album, Artist, Image, Ref, SearchResult, Track
 
 from . import Extension
-from .album_index import AlbumIndex, AlbumIndexTrack
+from .index_files import AlbumIndex, AlbumIndexTrack, StationIndex
 from .hash import make_hash
-from .scanner import read_album, scan_albums
+from .scanner import read_album, scan_dir
 from .uri import (
     ROOT_URI,
     AlbumsUri,
@@ -16,6 +16,9 @@ from .uri import (
     AlbumUri,
     ArtistUri,
     SearchUri,
+    StationStreamUri,
+    StationUri,
+    StationsUri,
     parse_uri,
 )
 
@@ -34,15 +37,23 @@ class KitchenLibraryProvider(backend.LibraryProvider):
 
     def _initialize(self):
         media_dir = Path(self._config["media_dir"])
-        albums = scan_albums(media_dir)
+        found = scan_dir(media_dir)
         self._albums: Mapping[str, AlbumIndex] = {}
-        for album in albums:
-            album_id = make_hash(album.name)
-            if album_id in self._albums:
-                logger.warning("Duplicate albums: '%s' and '%s'", album.path, self._albums[album_id].path)
-                continue
-            self._albums[album_id] = album
+        self._stations: Mapping[str, StationIndex] = {}
+        for item in found:
+            item_id = make_hash(item.name)
+            if isinstance(item, AlbumIndex):
+                if item_id in self._albums:
+                    logger.warning("Duplicate albums: '%s' and '%s'", item.path, self._albums[item_id].path)
+                    continue
+                self._albums[item_id] = item
+            elif isinstance(item, StationIndex):
+                if item_id in self._stations:
+                    logger.warning("Duplicate stations: '%s' and '%s'", item.path, self._stations[item_id].path)
+                    continue
+                self._stations[item_id] = item
         logger.info("Found %d albums", len(self._albums))
+        logger.info("Found %d stations", len(self._stations))
         self._cleanup_albums_dir()
         self._create_symlinks()
 
@@ -76,6 +87,10 @@ class KitchenLibraryProvider(backend.LibraryProvider):
                 return self._browse_albums()
             if isinstance(kitchen_uri, AlbumUri):
                 return self._browse_album(kitchen_uri)
+            if isinstance(kitchen_uri, StationsUri):
+                return self._browse_stations()
+            if isinstance(kitchen_uri, StationUri):
+                return self._browse_station(kitchen_uri)
             raise ValueError("Unsupported URI")
         except Exception as e:
             logger.error("Error in browse for %s: %s", uri, e)
@@ -84,6 +99,7 @@ class KitchenLibraryProvider(backend.LibraryProvider):
     def _browse_root(self):
         return [
             Ref.directory(uri=str(AlbumsUri()), name="Albums"),
+            Ref.directory(uri=str(StationsUri()), name="Stations"),
         ]
 
     def _browse_albums(self):
@@ -92,7 +108,17 @@ class KitchenLibraryProvider(backend.LibraryProvider):
     def _browse_album(self, uri: AlbumUri):
         album = self._albums.get(uri.album_id)
         if album:
-            return [_make_track_ref(uri.album_id, track) for track in album.tracks]
+            return [_make_album_track_ref(uri.album_id, track) for track in album.tracks]
+        return []
+
+    def _browse_stations(self):
+        return [_make_station_ref(station_id, station) for station_id, station in self._stations.items()]
+
+    def _browse_station(self, uri: StationUri):
+        station = self._stations.get(uri.station_id)
+        if station:
+            stream_uri = str(StationStreamUri(uri.station_id, 1))
+            return [Ref.track(uri=stream_uri, name=station.name)]
         return []
 
     # == lookup ==
@@ -104,6 +130,10 @@ class KitchenLibraryProvider(backend.LibraryProvider):
                 return self._lookup_album(kitchen_uri)
             if isinstance(kitchen_uri, AlbumTrackUri):
                 return self._lookup_album_track(kitchen_uri)
+            if isinstance(kitchen_uri, StationUri):
+                return self._lookup_station(kitchen_uri)
+            if isinstance(kitchen_uri, StationStreamUri):
+                return self._lookup_station_stream(kitchen_uri)
             raise ValueError("Unsupported URI")
         except Exception as e:
             logger.error("Error in lookup for %s: %s", uri, e)
@@ -112,7 +142,7 @@ class KitchenLibraryProvider(backend.LibraryProvider):
     def _lookup_album(self, uri: AlbumUri):
         album = self._albums.get(uri.album_id)
         if album:
-            return _make_tracks(uri.album_id, album)
+            return _make_album_tracks(uri.album_id, album)
         return []
 
     def _lookup_album_track(self, uri: AlbumTrackUri):
@@ -120,7 +150,19 @@ class KitchenLibraryProvider(backend.LibraryProvider):
         if album:
             track = _find_track(album, uri.disc_no, uri.track_no)
             if track:
-                return [_make_track(uri.album_id, album, track)]
+                return [_make_album_track(uri.album_id, album, track)]
+        return []
+
+    def _lookup_station(self, uri: StationUri):
+        station = self._stations.get(uri.station_id)
+        if station:
+            return [_make_station_track(uri.station_id, station, 1)]
+        return []
+
+    def _lookup_station_stream(self, uri: StationStreamUri):
+        station = self._stations.get(uri.station_id)
+        if station:
+            return [_make_station_track(uri.station_id, station, uri.stream_no)]
         return []
 
     # == search ==
@@ -146,7 +188,7 @@ class KitchenLibraryProvider(backend.LibraryProvider):
                 if field in ("any", "track_name"):
                     for track in album.tracks:
                         if track.title and matches(track.title):
-                            tracks.append(_make_track(album_id, album, track))
+                            tracks.append(_make_album_track(album_id, album, track))
         search_uri = str(SearchUri())
         return SearchResult(uri=search_uri, albums=albums, tracks=tracks)
 
@@ -197,6 +239,10 @@ class KitchenLibraryProvider(backend.LibraryProvider):
                 track = _find_track(album, kitchen_uri.disc_no, kitchen_uri.track_no)
                 if track:
                     return track.path.as_uri()
+        elif isinstance(kitchen_uri, StationStreamUri):
+            station = self._stations.get(kitchen_uri.station_id)
+            if station and kitchen_uri.stream_no == 1:
+                return station.stream
 
 
 def _match_exact(word: str, term: str):
@@ -238,7 +284,11 @@ def _make_album_ref(album_id: str, album: AlbumIndex):
     return Ref.album(uri=str(AlbumUri(album_id)), name=album.name)
 
 
-def _make_track_ref(album_id, track: AlbumIndexTrack):
+def _make_station_ref(station_id: str, station: StationIndex):
+    return Ref.album(uri=str(StationUri(station_id)), name=station.name)
+
+
+def _make_album_track_ref(album_id, track: AlbumIndexTrack):
     uri = str(AlbumTrackUri(album_id, track.disc_no, track.track_no))
     return Ref.track(uri=uri, name=track.title)
 
@@ -257,12 +307,12 @@ def _make_album(album_id: str, album: AlbumIndex):
     return Album(**kwargs)
 
 
-def _make_track(album_id: str, album: AlbumIndex, track: AlbumIndexTrack):
+def _make_album_track(album_id: str, album: AlbumIndex, track: AlbumIndexTrack):
     mop_album = _make_album(album_id, album)
     return _make_track_with_album(album_id, track, mop_album)
 
 
-def _make_tracks(album_id: str, album: AlbumIndex):
+def _make_album_tracks(album_id: str, album: AlbumIndex):
     mop_album = _make_album(album_id, album)
     return [_make_track_with_album(album_id, track, mop_album) for track in album.tracks]
 
@@ -281,6 +331,14 @@ def _make_track_with_album(album_id: str, track: AlbumIndexTrack, album: Album):
         kwargs["length"] = track.duration_ms
     if track.musicbrainz_id:
         kwargs["musicbrainz_id"] = track.musicbrainz_id
+    return Track(**kwargs)
+
+
+def _make_station_track(station_id: str, station: StationIndex, stream_no: int):
+    kwargs = {
+        "uri": str(StationStreamUri(station_id, stream_no)),
+        "name": station.name,
+    }
     return Track(**kwargs)
 
 

@@ -15,11 +15,11 @@ Mopidy-Kitchen
     :alt: Test coverage
 
 Mopidy extension for my Kitchen radio.
-Discoveres albums in the local filesystem based on index files.
+Discovers albums in the local filesystem based on index files.
 Each album should be a directory that includes an ``index.json`` file that lists the contents and
 metadata of this album.
 
-Index files should look like this example:
+Album index files should look like this example:
 
 .. code-block:: json
 
@@ -46,6 +46,21 @@ Index files should look like this example:
                 "length": 303
             }]
         }]
+    }
+
+
+Album covers are expected in a file named ``cover.jpg`` in the album directory.
+
+Radio stations are also supported, they must be declared in a file ``station.json``,
+each station in a separate directory.
+
+Radio station files should look like this example:
+
+.. code-block:: json
+
+    {
+        "name": "Radio One",
+        "stream": "https://radio-one.com/stream"
     }
 
 

@@ -20,6 +20,13 @@ def make_album(album_path: Path, index=None):
         f.write(index_json)
 
 
+def make_station(station_path: Path, index=None):
+    station_path.mkdir(parents=True, exist_ok=True)
+    station_json = index if isinstance(index, str) else json.dumps(index)
+    with open(station_path / "station.json", mode="w") as f:
+        f.write(station_json)
+
+
 def make_image(image_path: Path, data=None):
     with open(image_path, mode="w") as f:
         f.write(data or "")

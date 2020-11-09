@@ -2,12 +2,12 @@ import logging
 from pathlib import Path
 from typing import List
 
-from .album_index import AlbumIndex, AlbumIndexError
+from .index_files import AlbumIndex, StationIndex, IndexFileError
 
 logger = logging.getLogger(__name__)
 
 
-def scan_albums(root_dir: Path):
+def scan_dir(root_dir: Path):
     root = Path(root_dir).resolve()
     if not root.is_dir():
         logger.error("Not a directory: %s", root)
@@ -19,10 +19,15 @@ def scan_albums(root_dir: Path):
 
 def _scan_dir(dir: Path, found: List[AlbumIndex]):
     index_file = dir / "index.json"
+    station_file = dir / "station.json"
     if index_file.is_file():
         album = _read_album_index(index_file)
         if album:
             found.append(album)
+    elif station_file.is_file():
+        station = _read_station_index(station_file)
+        if station:
+            found.append(station)
     else:
         for child in dir.iterdir():
             if child.is_dir():
@@ -37,7 +42,16 @@ def read_album(dir: Path):
 def _read_album_index(file_path: Path):
     try:
         return AlbumIndex.read_from_file(file_path)
-    except AlbumIndexError as err:
+    except IndexFileError as err:
         logger.error(str(err))
     except Exception:
         logger.exception("Failed reading album index at %s", file_path)
+
+
+def _read_station_index(file_path: Path):
+    try:
+        return StationIndex.read_from_file(file_path)
+    except IndexFileError as err:
+        logger.error(str(err))
+    except Exception:
+        logger.exception("Failed reading station index at %s", file_path)

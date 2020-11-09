@@ -6,6 +6,9 @@ from mopidy_kitchen.uri import (
     AlbumTrackUri,
     AlbumUri,
     SearchUri,
+    StationStreamUri,
+    StationUri,
+    StationsUri,
     parse_uri,
 )
 
@@ -28,6 +31,13 @@ def test_parse_uri_albums():
 
     assert type(result) == AlbumsUri
     assert str(result) == "kitchen:albums"
+
+
+def test_parse_uri_stations():
+    result = parse_uri("kitchen:stations")
+
+    assert type(result) == StationsUri
+    assert str(result) == "kitchen:stations"
 
 
 def test_parse_uri_album():
@@ -63,6 +73,23 @@ def test_parse_uri_album_track_invalid():
         str(err_inf.value)
         == "Invalid kitchen URI 'kitchen:album:123456789012345678901234567890ab:1:a': Invalid number 'a'"
     )
+
+
+def test_parse_uri_station():
+    result = parse_uri("kitchen:station:123456789012345678901234567890ab")
+
+    assert type(result) == StationUri
+    assert str(result) == "kitchen:station:123456789012345678901234567890ab"
+    assert result.station_id == "123456789012345678901234567890ab"
+
+
+def test_parse_uri_station_stream():
+    result = parse_uri("kitchen:station:123456789012345678901234567890ab:1")
+
+    assert type(result) == StationStreamUri
+    assert str(result) == "kitchen:station:123456789012345678901234567890ab:1"
+    assert result.station_id == "123456789012345678901234567890ab"
+    assert result.stream_no == 1
 
 
 def test_parse_uri_search():

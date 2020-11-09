@@ -5,7 +5,7 @@ from mopidy.models import Album, Image, Ref, SearchResult, Track
 from mopidy_kitchen.library import KitchenLibraryProvider
 from mopidy_kitchen.uri import AlbumsUri, parse_uri
 
-from .helpers import EXAMPLE_ALBUM, make_album, make_config, make_image
+from .helpers import EXAMPLE_ALBUM, make_album, make_config, make_image, make_station
 
 
 def test_detects_duplicates(tmp_path, caplog):
@@ -46,6 +46,7 @@ def test_browse_root(tmp_path, caplog):
     assert caplog.text == ""
     assert result == [
         Ref.directory(uri="kitchen:albums", name="Albums"),
+        Ref.directory(uri="kitchen:stations", name="Stations"),
     ]
 
 
@@ -59,6 +60,18 @@ def test_browse_albums(tmp_path, caplog):
     assert len(result) > 0
     assert result[0].type == "album"
     assert result == [Ref.album(uri="kitchen:album:95506c273e4ecb0333d19824d66ab586", name="John Doe - One Day")]
+
+
+def test_browse_stations(tmp_path, caplog):
+    make_station(tmp_path / "media" / "r1", {"name": "Radio 1", "stream": "http://radio1.com/stream"})
+    provider = KitchenLibraryProvider(backend={}, config=make_config(tmp_path))
+
+    result = provider.browse("kitchen:stations")
+
+    assert caplog.text == ""
+    assert len(result) > 0
+    assert result[0].type == "album"
+    assert result == [Ref.album(uri="kitchen:station:770e06d40b8b4d64e89c24098d25fdc2", name="Radio 1")]
 
 
 def test_browse_album(tmp_path, caplog):
@@ -78,6 +91,28 @@ def test_browse_missing_album(tmp_path, caplog):
     provider = KitchenLibraryProvider(backend={}, config=make_config(tmp_path))
 
     result = provider.browse("kitchen:album:01234567012345670123456701234567")
+
+    assert caplog.text == ""
+    assert result == []
+
+
+def test_browse_station(tmp_path, caplog):
+    make_station(tmp_path / "media" / "r1", {"name": "Radio 1", "stream": "http://radio1.com/stream"})
+    provider = KitchenLibraryProvider(backend={}, config=make_config(tmp_path))
+    station_uri = provider.browse("kitchen:stations")[0].uri
+
+    result = provider.browse(station_uri)
+
+    assert caplog.text == ""
+    assert len(result) > 0
+    assert result[0].type == "track"
+
+
+def test_browse_missing_station(tmp_path, caplog):
+    make_station(tmp_path / "media" / "r1", {"name": "Radio 1", "stream": "http://radio1.com/stream"})
+    provider = KitchenLibraryProvider(backend={}, config=make_config(tmp_path))
+
+    result = provider.browse("kitchen:station:01234567012345670123456701234567")
 
     assert caplog.text == ""
     assert result == []
@@ -119,7 +154,7 @@ def test_lookup_missing_album(tmp_path, caplog):
     assert result == []
 
 
-def test_lookup_track(tmp_path, caplog):
+def test_lookup_album_track(tmp_path, caplog):
     make_album(tmp_path / "media" / "a1", EXAMPLE_ALBUM)
     provider = KitchenLibraryProvider(backend={}, config=make_config(tmp_path))
     album_uri = provider.browse("kitchen:albums")[0].uri
@@ -131,7 +166,7 @@ def test_lookup_track(tmp_path, caplog):
     assert isinstance(result[0], Track)
 
 
-def test_lookup_missing_track(tmp_path, caplog):
+def test_lookup_missing_album_track(tmp_path, caplog):
     make_album(tmp_path / "media" / "a1", EXAMPLE_ALBUM)
     provider = KitchenLibraryProvider(backend={}, config=make_config(tmp_path))
     album_uri = provider.browse("kitchen:albums")[0].uri
@@ -140,6 +175,40 @@ def test_lookup_missing_track(tmp_path, caplog):
 
     assert caplog.text == ""
     assert result == []
+
+
+def test_lookup_station(tmp_path, caplog):
+    make_station(tmp_path / "media" / "r1", {"name": "Radio 1", "stream": "http://radio1.com/stream"})
+    provider = KitchenLibraryProvider(backend={}, config=make_config(tmp_path))
+    station_uri = provider.browse("kitchen:stations")[0].uri
+
+    result = provider.lookup(station_uri)
+
+    assert caplog.text == ""
+    assert len(result) > 0
+    assert isinstance(result[0], Track)
+
+
+def test_lookup_missing_station(tmp_path, caplog):
+    make_station(tmp_path / "media" / "r1", {"name": "Radio 1", "stream": "http://radio1.com/stream"})
+    provider = KitchenLibraryProvider(backend={}, config=make_config(tmp_path))
+
+    result = provider.lookup("kitchen:station:01234567012345670123456701234567")
+
+    assert caplog.text == ""
+    assert result == []
+
+
+def test_lookup_station_stream(tmp_path, caplog):
+    make_station(tmp_path / "media" / "r1", {"name": "Radio 1", "stream": "http://radio1.com/stream"})
+    provider = KitchenLibraryProvider(backend={}, config=make_config(tmp_path))
+    station_uri = provider.browse("kitchen:stations")[0].uri
+
+    result = provider.lookup(station_uri + ":1")
+
+    assert caplog.text == ""
+    assert len(result) > 0
+    assert isinstance(result[0], Track)
 
 
 def test_lookup_other(tmp_path, caplog):
@@ -334,6 +403,17 @@ def test_get_playback_uri_album_track(tmp_path, caplog):
 
     assert caplog.text == ""
     assert result == f"file://{tmp_path}/media/a1/01.ogg"
+
+
+def test_get_playback_uri_station_stream(tmp_path, caplog):
+    make_station(tmp_path / "media" / "r1", {"name": "Radio 1", "stream": "http://radio1.com/stream"})
+    provider = KitchenLibraryProvider(backend={}, config=make_config(tmp_path))
+    stream_uri = provider.browse("kitchen:stations")[0].uri + ":1"
+
+    result = provider.get_playback_uri(stream_uri)
+
+    assert caplog.text == ""
+    assert result == "http://radio1.com/stream"
 
 
 def join_artists(album: Album):

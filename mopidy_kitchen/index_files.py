@@ -9,13 +9,13 @@ class AlbumIndex:
             try:
                 data = json.load(f)
             except json.JSONDecodeError as err:
-                raise AlbumIndexError(
+                raise IndexFileError(
                     "Could not parse JSON in '%s': %s at %d:%d" % (file_path, err.msg, err.lineno, err.colno)
                 )
         try:
             return AlbumIndex(data, file_path.parent)
-        except AlbumIndexError as err:
-            raise AlbumIndexError("Invalid index format in '%s': %s" % (file_path, err))
+        except IndexFileError as err:
+            raise IndexFileError("Invalid index format in '%s': %s" % (file_path, err))
 
     @property
     def name(self):
@@ -104,8 +104,47 @@ class AlbumIndexTrack:
         self._musicbrainz_id = _extract_musicbrainz_id(data, context)
 
 
+class StationIndex:
+    @staticmethod
+    def read_from_file(file_path: Path):
+        with open(file_path) as f:
+            try:
+                data = json.load(f)
+            except json.JSONDecodeError as err:
+                raise IndexFileError(
+                    "Could not parse JSON in '%s': %s at %d:%d" % (file_path, err.msg, err.lineno, err.colno)
+                )
+        try:
+            return StationIndex(data, file_path.parent)
+        except IndexFileError as err:
+            raise IndexFileError("Invalid index format in '%s': %s" % (file_path, err))
+
+    @property
+    def name(self):
+        return self._name
+
+    @property
+    def path(self):
+        return self._path
+
+    @property
+    def stream(self):
+        return self._stream
+
+    def __init__(self, data: dict, root_path: Path):
+        context = "album"
+        _check_object(data, context)
+        self._path = root_path
+        self._name = _extract_name(data, context)
+        self._stream = _extract_stream(data, context)
+
+
 def _extract_name(data: dict, context: str):
     return _get(data, "name", context, required=True, check=_check_string)
+
+
+def _extract_stream(data: dict, context: str):
+    return _get(data, "stream", context, required=True, check=_check_string)
 
 
 def _extract_title(data: dict, context: str):
@@ -140,7 +179,7 @@ def _extract_discs(data: dict, context: str):
 def _get(object: dict, name: str, context: str, check=None, default=None, required=False):
     if name not in object:
         if required:
-            raise AlbumIndexError(f"Attribute '{name}' is missing in {context}")
+            raise IndexFileError(f"Attribute '{name}' is missing in {context}")
         else:
             return default
     value = object[name]
@@ -151,26 +190,26 @@ def _get(object: dict, name: str, context: str, check=None, default=None, requir
 
 def _check_object(value, name: str):
     if not isinstance(value, dict):
-        raise AlbumIndexError(f"{name.capitalize()} is not an object")
+        raise IndexFileError(f"{name.capitalize()} is not an object")
 
 
 def _check_array(value, name: str):
     if not isinstance(value, list):
-        raise AlbumIndexError(f"{name.capitalize()} is not an array")
+        raise IndexFileError(f"{name.capitalize()} is not an array")
 
 
 def _check_string(value, name: str):
     if not isinstance(value, str):
-        raise AlbumIndexError(f"{name.capitalize()} is not a string")
+        raise IndexFileError(f"{name.capitalize()} is not a string")
 
 
 def _check_non_negative_number(value, name: str):
     if not isinstance(value, (int, float)):
-        raise AlbumIndexError(f"{name.capitalize()} is not a number")
+        raise IndexFileError(f"{name.capitalize()} is not a number")
     if value < 0:
-        raise AlbumIndexError(f"{name.capitalize()} is negative")
+        raise IndexFileError(f"{name.capitalize()} is negative")
 
 
-class AlbumIndexError(ValueError):
+class IndexFileError(ValueError):
     def __init__(self, message) -> None:
         super().__init__(message)

@@ -1,21 +1,21 @@
 import logging
 
-from mopidy_kitchen.album_index import AlbumIndex
-from mopidy_kitchen.scanner import scan_albums, read_album
+from mopidy_kitchen.index_files import AlbumIndex
+from mopidy_kitchen.scanner import scan_dir, read_album
 
 from .helpers import make_album
 
 
-def test_scan_albums_empty(tmp_path, caplog):
-    result = scan_albums(tmp_path)
+def test_scan_dir_empty(tmp_path, caplog):
+    result = scan_dir(tmp_path)
 
     assert caplog.text == ""
     assert result == []
 
 
-def test_scan_albums_valid(tmp_path, caplog):
+def test_scan_dir_valid(tmp_path, caplog):
     make_album(tmp_path / "a", '{"name": "Foo"}')
-    result = scan_albums(tmp_path)
+    result = scan_dir(tmp_path)
 
     assert caplog.text == ""
     assert len(result) == 1
@@ -24,12 +24,12 @@ def test_scan_albums_valid(tmp_path, caplog):
     assert result[0].path == tmp_path / "a"
 
 
-def test_scan_albums_invalid(tmp_path, caplog):
+def test_scan_dir_invalid(tmp_path, caplog):
     make_album(tmp_path / "a", '{"name": "Foo"}')
     make_album(tmp_path / "b", '{"name": 23}')
     make_album(tmp_path / "c", '{"name": "Bar"}')
 
-    result = scan_albums(tmp_path)
+    result = scan_dir(tmp_path)
 
     assert [a.name for a in result] == ["Bar", "Foo"]
     assert len(caplog.records) == 1

@@ -1,6 +1,6 @@
 from pytest import raises
 
-from mopidy_kitchen.album_index import AlbumIndex, AlbumIndexError
+from mopidy_kitchen.index_files import AlbumIndex, IndexFileError
 from .helpers import make_album
 
 
@@ -15,7 +15,7 @@ def test_read_file_not_found(tmp_path):
 def test_read_invalid_json(tmp_path):
     make_album(tmp_path, "not json")
 
-    with raises(AlbumIndexError) as ex_info:
+    with raises(IndexFileError) as ex_info:
         AlbumIndex.read_from_file(tmp_path / "index.json")
 
     assert str(ex_info.value) == f"Could not parse JSON in '{tmp_path}/index.json': Expecting value at 1:1"
@@ -24,7 +24,7 @@ def test_read_invalid_json(tmp_path):
 def test_read_invalid_json_type(tmp_path):
     make_album(tmp_path, "[]")
 
-    with raises(AlbumIndexError) as ex_info:
+    with raises(IndexFileError) as ex_info:
         AlbumIndex.read_from_file(tmp_path / "index.json")
 
     assert str(ex_info.value) == f"Invalid index format in '{tmp_path}/index.json': Album is not an object"
@@ -33,7 +33,7 @@ def test_read_invalid_json_type(tmp_path):
 def test_read_missing_album_name(tmp_path):
     make_album(tmp_path, "{}")
 
-    with raises(AlbumIndexError) as ex_info:
+    with raises(IndexFileError) as ex_info:
         AlbumIndex.read_from_file(tmp_path / "index.json")
 
     assert (
@@ -44,7 +44,7 @@ def test_read_missing_album_name(tmp_path):
 def test_read_invalid_album_name(tmp_path):
     make_album(tmp_path, {"name": 23})
 
-    with raises(AlbumIndexError) as ex_info:
+    with raises(IndexFileError) as ex_info:
         AlbumIndex.read_from_file(tmp_path / "index.json")
 
     assert (
@@ -148,7 +148,7 @@ def test_read_track_defaults(tmp_path):
 def test_read_invalid_tracks_type(tmp_path):
     make_album(tmp_path, '{"name": "foo", "tracks": 12}')
 
-    with raises(AlbumIndexError) as ex_info:
+    with raises(IndexFileError) as ex_info:
         AlbumIndex.read_from_file(tmp_path / "index.json")
 
     assert (
@@ -160,7 +160,7 @@ def test_read_invalid_tracks_type(tmp_path):
 def test_read_missing_track_path(tmp_path):
     make_album(tmp_path, '{"name": "foo", "tracks": [{"length": 101}]}')
 
-    with raises(AlbumIndexError) as ex_info:
+    with raises(IndexFileError) as ex_info:
         AlbumIndex.read_from_file(tmp_path / "index.json")
 
     assert (
@@ -175,7 +175,7 @@ def test_read_invalid_track_length_type(tmp_path):
         {"name": "foo", "tracks": [{"path": "01.ogg", "length": "23"}]},
     )
 
-    with raises(AlbumIndexError) as ex_info:
+    with raises(IndexFileError) as ex_info:
         AlbumIndex.read_from_file(tmp_path / "index.json")
 
     assert (
@@ -190,7 +190,7 @@ def test_read_negative_track_length(tmp_path):
         {"name": "foo", "tracks": [{"path": "01.ogg", "length": -23}]},
     )
 
-    with raises(AlbumIndexError) as ex_info:
+    with raises(IndexFileError) as ex_info:
         AlbumIndex.read_from_file(tmp_path / "index.json")
 
     assert (

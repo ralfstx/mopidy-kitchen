@@ -11,8 +11,12 @@ def parse_uri(uri: str):
                     return _parse_root_uri(tail)
                 if head == "albums":
                     return _parse_albums_uri(tail)
+                if head == "stations":
+                    return _parse_stations_uri(tail)
                 if head == "album":
                     return _parse_album_uri(tail)
+                if head == "station":
+                    return _parse_station_uri(tail)
                 if head == "artist":
                     return _parse_artist_uri(tail)
                 if head == "search":
@@ -31,6 +35,11 @@ def _parse_albums_uri(segments):
         return AlbumsUri()
 
 
+def _parse_stations_uri(segments):
+    if not segments:
+        return StationsUri()
+
+
 def _parse_album_uri(segments):
     if len(segments) == 1:
         album_id = _check_id(segments[0])
@@ -40,6 +49,16 @@ def _parse_album_uri(segments):
         disc_no = _check_number(segments[1])
         track_no = _check_number(segments[2])
         return AlbumTrackUri(album_id, disc_no, track_no)
+
+
+def _parse_station_uri(segments):
+    if len(segments) == 1:
+        station_id = _check_id(segments[0])
+        return StationUri(station_id)
+    if len(segments) == 2:
+        station_id = _check_id(segments[0])
+        stream_no = _check_number(segments[1])
+        return StationStreamUri(station_id, stream_no)
 
 
 def _parse_artist_uri(segments):
@@ -91,6 +110,11 @@ class AlbumsUri(KitchenUri):
         super().__init__("kitchen:albums")
 
 
+class StationsUri(KitchenUri):
+    def __init__(self):
+        super().__init__("kitchen:stations")
+
+
 class AlbumUri(KitchenUri):
     def __init__(self, album_id: str):
         super().__init__("kitchen:album:%s" % album_id)
@@ -103,6 +127,19 @@ class AlbumTrackUri(KitchenUri):
         self.album_id = album_id
         self.disc_no = disc_no
         self.track_no = track_no
+
+
+class StationUri(KitchenUri):
+    def __init__(self, station_id: str):
+        super().__init__("kitchen:station:%s" % station_id)
+        self.station_id = station_id
+
+
+class StationStreamUri(KitchenUri):
+    def __init__(self, station_id: str, stream_no: int):
+        super().__init__("kitchen:station:%s:%d" % (station_id, stream_no))
+        self.station_id = station_id
+        self.stream_no = stream_no
 
 
 class ArtistUri(KitchenUri):
