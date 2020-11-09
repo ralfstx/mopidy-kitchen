@@ -1,4 +1,13 @@
-from mopidy_kitchen.uri import ROOT_URI, AlbumsUri, AlbumTrackUri, AlbumUri, SearchUri, parse_uri
+import pytest
+
+from mopidy_kitchen.uri import (
+    ROOT_URI,
+    AlbumsUri,
+    AlbumTrackUri,
+    AlbumUri,
+    SearchUri,
+    parse_uri,
+)
 
 
 def test_parse_uri_none():
@@ -21,19 +30,19 @@ def test_parse_uri_albums():
     assert str(result) == "kitchen:albums"
 
 
-def test_parse_uri_search():
-    result = parse_uri("kitchen:search?")
-
-    assert type(result) == SearchUri
-    assert str(result) == "kitchen:search?"
-
-
 def test_parse_uri_album():
     result = parse_uri("kitchen:album:123456789012345678901234567890ab")
 
     assert type(result) == AlbumUri
     assert str(result) == "kitchen:album:123456789012345678901234567890ab"
     assert result.album_id == "123456789012345678901234567890ab"
+
+
+def test_parse_uri_album_invalid():
+    with pytest.raises(ValueError) as err_inf:
+        parse_uri("kitchen:album:INVALID")
+
+    assert str(err_inf.value) == "Invalid kitchen URI 'kitchen:album:INVALID': Invalid ID 'INVALID'"
 
 
 def test_parse_uri_album_track():
@@ -44,6 +53,23 @@ def test_parse_uri_album_track():
     assert result.album_id == "123456789012345678901234567890ab"
     assert result.disc_no == 1
     assert result.track_no == 2
+
+
+def test_parse_uri_album_track_invalid():
+    with pytest.raises(ValueError) as err_inf:
+        parse_uri("kitchen:album:123456789012345678901234567890ab:1:a")
+
+    assert (
+        str(err_inf.value)
+        == "Invalid kitchen URI 'kitchen:album:123456789012345678901234567890ab:1:a': Invalid number 'a'"
+    )
+
+
+def test_parse_uri_search():
+    result = parse_uri("kitchen:search")
+
+    assert type(result) == SearchUri
+    assert str(result) == "kitchen:search"
 
 
 def test_str_repr():

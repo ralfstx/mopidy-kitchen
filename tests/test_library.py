@@ -174,7 +174,7 @@ def test_search_not_found(tmp_path, caplog):
 
     assert caplog.text == ""
     assert type(result) == SearchResult
-    assert result.uri == "kitchen:search?"
+    assert result.uri == "kitchen:search"
     assert result.albums == ()
     assert result.tracks == ()
 
@@ -189,7 +189,7 @@ def test_search_match_album(tmp_path, caplog):
 
     assert caplog.text == ""
     assert type(result) == SearchResult
-    assert result.uri == "kitchen:search?"
+    assert result.uri == "kitchen:search"
     assert [album.name for album in result.albums] == ["Goodbye Maria", "Goodbye Marianne"]
     assert result.tracks == ()
 
@@ -204,7 +204,7 @@ def test_search_match_multi_words(tmp_path, caplog):
 
     assert caplog.text == ""
     assert type(result) == SearchResult
-    assert result.uri == "kitchen:search?"
+    assert result.uri == "kitchen:search"
     assert [album.name for album in result.albums] == ["Good Night Marlene"]
     assert result.tracks == ()
 
@@ -219,7 +219,7 @@ def test_search_match_album_exact(tmp_path, caplog):
 
     assert caplog.text == ""
     assert type(result) == SearchResult
-    assert result.uri == "kitchen:search?"
+    assert result.uri == "kitchen:search"
     assert [album.name for album in result.albums] == ["Goodbye Maria"]
     assert result.tracks == ()
 
@@ -234,7 +234,7 @@ def test_search_match_albumartist(tmp_path, caplog):
 
     assert caplog.text == ""
     assert type(result) == SearchResult
-    assert result.uri == "kitchen:search?"
+    assert result.uri == "kitchen:search"
     assert [album.name for album in result.albums] == ["One", "Two"]
     assert result.tracks == ()
 
@@ -249,7 +249,7 @@ def test_search_match_albumartist_exact(tmp_path, caplog):
 
     assert caplog.text == ""
     assert type(result) == SearchResult
-    assert result.uri == "kitchen:search?"
+    assert result.uri == "kitchen:search"
     assert [album.name for album in result.albums] == ["Two"]
     assert result.tracks == ()
 
@@ -262,7 +262,7 @@ def test_search_match_trackname(tmp_path, caplog):
 
     assert caplog.text == ""
     assert type(result) == SearchResult
-    assert result.uri == "kitchen:search?"
+    assert result.uri == "kitchen:search"
     assert result.albums == ()
     assert [track.name for track in result.tracks] == ["The Morning"]
 
