@@ -193,16 +193,16 @@ class KitchenLibraryProvider(backend.LibraryProvider):
                 album_id = make_hash(new_album.name)
                 self._albums[album_id] = new_album
 
-    # == get_path (extension) ==
+    # == get_playback_uri (extension) ==
 
-    def get_path(self, uri: str):
+    def get_playback_uri(self, uri: str):
         kitchen_uri = parse_uri(uri)
         if isinstance(kitchen_uri, AlbumTrackUri):
             album = self._albums.get(kitchen_uri.album_id)
             if album:
                 track = _find_track(album, kitchen_uri.disc_no, kitchen_uri.track_no)
                 if track:
-                    return track.path
+                    return track.path.as_uri()
 
 
 def _match_exact(word: str, term: str):

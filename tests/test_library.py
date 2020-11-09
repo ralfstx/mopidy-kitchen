@@ -333,18 +333,18 @@ def test_get_images_for_multiple_uris(tmp_path, caplog):
     }
 
 
-# == get_path ==
+# == get_playback_uri ==
 
 
-def test_get_path_album_track(tmp_path, caplog):
+def test_get_playback_uri_album_track(tmp_path, caplog):
     make_album(tmp_path / "media" / "a1", {"name": "John Doe - One Day", "tracks": [{"path": "01.ogg"}]})
     provider = KitchenLibraryProvider(backend={}, config=make_config(tmp_path))
     track_uri = provider.browse("kitchen:albums")[0].uri + ":1:1"
 
-    result = provider.get_path(track_uri)
+    result = provider.get_playback_uri(track_uri)
 
     assert caplog.text == ""
-    assert result == tmp_path / "media" / "a1" / "01.ogg"
+    assert result == f"file://{tmp_path}/media/a1/01.ogg"
 
 
 def join_artists(album: Album):
