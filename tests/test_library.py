@@ -83,17 +83,6 @@ def test_browse_missing_album(tmp_path, caplog):
     assert result == []
 
 
-def test_browse_track(tmp_path, caplog):
-    make_album(tmp_path / "media" / "a1", EXAMPLE_ALBUM)
-    provider = KitchenLibraryProvider(backend={}, config=make_config(tmp_path))
-    album_uri = provider.browse("kitchen:albums")[0].uri
-
-    result = provider.browse(album_uri + ":1:1")
-
-    assert caplog.text == ""
-    assert result == []
-
-
 def test_browse_other(tmp_path, caplog):
     provider = KitchenLibraryProvider(backend={}, config=make_config(tmp_path))
 

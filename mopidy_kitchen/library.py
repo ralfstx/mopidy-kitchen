@@ -76,13 +76,10 @@ class KitchenLibraryProvider(backend.LibraryProvider):
                 return self._browse_albums()
             if isinstance(kitchen_uri, AlbumUri):
                 return self._browse_album(kitchen_uri)
-            if isinstance(kitchen_uri, AlbumTrackUri):
-                return self._browse_album_track(kitchen_uri)
-            else:
-                raise ValueError("Unsupported URI")
+            raise ValueError("Unsupported URI")
         except Exception as e:
             logger.error("Error in browse for %s: %s", uri, e)
-            return []
+        return []
 
     def _browse_root(self):
         return [
@@ -96,9 +93,6 @@ class KitchenLibraryProvider(backend.LibraryProvider):
         album = self._albums.get(uri.album_id)
         if album:
             return [_make_track_ref(uri.album_id, track) for track in album.tracks]
-        return []
-
-    def _browse_album_track(self, uri: AlbumUri):
         return []
 
     # == lookup ==
