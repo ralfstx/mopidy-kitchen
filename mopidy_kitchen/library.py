@@ -134,23 +134,24 @@ class KitchenLibraryProvider(backend.LibraryProvider):
     def search(self, query, uris=None, exact=False):
         q = []
         for field, values in query.items() if query else []:
-            q.extend((field, value.lower()) for value in values)
+            q.extend((field, value) for value in values)
+        match_fn = _match_exact if exact else _match_start
         albums = []
         tracks = []
-        matcher = _matches_exact if exact else _matches_start
         for album_id, album in self._albums.items():
             for field, value in q:
+                matches = _make_matcher(value, match_fn)
                 if field in ("any", "album"):
-                    if matcher(album.title, value):
+                    if matches(album.title):
                         albums.append(_make_album(album_id, album))
                         continue
                 if field in ("any", "albumartist"):
-                    if any(matcher(artist, value) for artist in album.artists):
+                    if any(matches(artist) for artist in album.artists):
                         albums.append(_make_album(album_id, album))
                         continue
                 if field in ("any", "track_name"):
                     for track in album.tracks:
-                        if track.title and matcher(track.title, value):
+                        if track.title and matches(track.title):
                             tracks.append(_make_track(album_id, album, track))
         search_uri = str(SearchUri())
         return SearchResult(uri=search_uri, albums=albums, tracks=tracks)
@@ -204,20 +205,33 @@ class KitchenLibraryProvider(backend.LibraryProvider):
                     return track.path
 
 
-def _matches_exact(string: str, term: str):
-    lower_term = term.lower()
-    for word in string.lower().split():
-        if word == lower_term:
+def _match_exact(word: str, term: str):
+    return word == term
+
+
+def _match_start(word: str, term: str):
+    return word.startswith(term)
+
+
+def _make_matcher(expr: str, match_fn):
+    terms = _split_lower(expr)
+
+    def matches_all_terms(string: str):
+        words = _split_lower(string)
+        return all(_matches_any_word(term, words, match_fn) for term in terms)
+
+    return matches_all_terms
+
+
+def _matches_any_word(term: str, words, match_fn):
+    for word in words:
+        if match_fn(word, term):
             return True
     return False
 
 
-def _matches_start(string: str, term: str):
-    lower_term = term.lower()
-    for word in string.lower().split():
-        if word.startswith(lower_term):
-            return True
-    return False
+def _split_lower(string: str):
+    return [part for part in string.lower().split() if part]
 
 
 def _find_track(album: AlbumIndex, disc_no: int, track_no: int):

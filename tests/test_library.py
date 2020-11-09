@@ -194,6 +194,21 @@ def test_search_match_album(tmp_path, caplog):
     assert result.tracks == ()
 
 
+def test_search_match_multi_words(tmp_path, caplog):
+    make_album(tmp_path / "media" / "a1", {"name": "test1", "title": "Goodbye Maria"})
+    make_album(tmp_path / "media" / "a2", {"name": "test2", "title": "Goodbye Marianne"})
+    make_album(tmp_path / "media" / "a3", {"name": "test3", "title": "Good Night Marlene"})
+    provider = KitchenLibraryProvider(backend={}, config=make_config(tmp_path))
+
+    result = provider.search({"album": ["ni mar"]})
+
+    assert caplog.text == ""
+    assert type(result) == SearchResult
+    assert result.uri == "kitchen:search?"
+    assert [album.name for album in result.albums] == ["Good Night Marlene"]
+    assert result.tracks == ()
+
+
 def test_search_match_album_exact(tmp_path, caplog):
     make_album(tmp_path / "media" / "a1", {"name": "test1", "title": "Goodbye Maria"})
     make_album(tmp_path / "media" / "a2", {"name": "test2", "title": "Goodbye Marianne"})
