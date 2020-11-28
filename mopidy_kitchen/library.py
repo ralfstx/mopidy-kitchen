@@ -1,6 +1,6 @@
 import logging
 from pathlib import Path
-from typing import Mapping
+from typing import List, Mapping
 
 from mopidy import backend
 from mopidy.models import Album, Artist, Image, Ref, SearchResult, Track
@@ -8,6 +8,7 @@ from mopidy.models import Album, Artist, Image, Ref, SearchResult, Track
 from . import Extension
 from .index_files import AlbumIndex, AlbumIndexTrack, StationIndex
 from .hash import make_hash
+from .search_index import SearchIndex
 from .scanner import read_album, scan_dir
 from .uri import (
     ROOT_URI,
@@ -54,6 +55,7 @@ class KitchenLibraryProvider(backend.LibraryProvider):
                 self._stations[item_id] = item
         logger.info("Found %d albums", len(self._albums))
         logger.info("Found %d stations", len(self._stations))
+        self._build_index()
         self._cleanup_albums_dir()
         self._create_symlinks()
 
@@ -75,6 +77,18 @@ class KitchenLibraryProvider(backend.LibraryProvider):
                     symlink_path.symlink_to(album.path)
         except IOError as err:
             logger.warning("Error creating symlinks in albums directory: %s", err)
+
+    def _build_index(self):
+        self._index = SearchIndex()
+        for album_id, album in self._albums.items():
+            # tags added as 2nd segment match mopidy's search attributes
+            self._index.add(album.title, f"{album_id}:album")
+            for track_idx, track in enumerate(album.tracks):
+                if track.title:
+                    self._index.add(track.title, f"{album_id}:track_name:{track_idx}")
+            for artist in album.artists:
+                self._index.add(artist, f"{album_id}:albumartist")
+        self._index.build()
 
     # == browse ==
 
@@ -171,26 +185,42 @@ class KitchenLibraryProvider(backend.LibraryProvider):
         q = []
         for field, values in query.items() if query else []:
             q.extend((field, value) for value in values)
-        match_fn = _match_exact if exact else _match_start
-        albums = []
-        tracks = []
-        for album_id, album in self._albums.items():
-            for field, value in q:
-                matches = _make_matcher(value, match_fn)
-                if field in ("any", "album"):
-                    if matches(album.title):
-                        albums.append(_make_album(album_id, album))
-                        continue
-                if field in ("any", "albumartist"):
-                    if any(matches(artist) for artist in album.artists):
-                        albums.append(_make_album(album_id, album))
-                        continue
-                if field in ("any", "track_name"):
-                    for track in album.tracks:
-                        if track.title and matches(track.title):
-                            tracks.append(_make_album_track(album_id, album, track))
+        results = {}
+        for field, expr in q:
+            terms = _split_lower(expr)
+            for album_id, flags in self._search_terms(terms, field, exact).items():
+                results.setdefault(album_id, set()).update(flags)
+        mop_albums = []
+        mop_tracks = []
+        for album_id, flags in results.items():
+            album = self._albums[album_id]
+            if "a" in flags:
+                mop_albums.append(_make_album(album_id, album))
+            for track_idx in [int(flag) for flag in flags if flag.isdigit()]:
+                mop_tracks.append(_make_album_track(album_id, album, album.tracks[track_idx]))
         search_uri = str(SearchUri())
-        return SearchResult(uri=search_uri, albums=albums, tracks=tracks)
+        return SearchResult(uri=search_uri, albums=mop_albums, tracks=mop_tracks)
+
+    def _search_terms(self, terms: List[str], field: str, exact: bool):
+        results_for_terms = [self._search_term(term, field, exact) for term in terms]
+        results = {}
+        for album_id, flags_list in _union_dicts(results_for_terms).items():
+            all_flags = set.union(*flags_list)
+            filtered_flags = {flag for flag in all_flags if all("a" in flags or flag in flags for flags in flags_list)}
+            if filtered_flags:
+                results[album_id] = filtered_flags
+        return results
+
+    def _search_term(self, term: str, field: str, exact: bool):
+        found = self._index.find(term, exact=exact)
+        results = {}
+        for item in found:
+            segments = item.split(":")
+            if field == "any" or field == segments[1]:
+                # flag is "a" if matches the album, or a track number if matches a track
+                flag = segments[2] if segments[1] == "track_name" else "a"
+                results.setdefault(segments[0], set()).add(flag)
+        return results
 
     # == get_images ==
 
@@ -228,6 +258,7 @@ class KitchenLibraryProvider(backend.LibraryProvider):
             if new_album:
                 album_id = make_hash(new_album.name)
                 self._albums[album_id] = new_album
+                self._build_index()
 
     # == get_playback_uri (extension) ==
 
@@ -243,31 +274,6 @@ class KitchenLibraryProvider(backend.LibraryProvider):
             station = self._stations.get(kitchen_uri.station_id)
             if station and kitchen_uri.stream_no == 1:
                 return station.stream
-
-
-def _match_exact(word: str, term: str):
-    return word == term
-
-
-def _match_start(word: str, term: str):
-    return word.startswith(term)
-
-
-def _make_matcher(expr: str, match_fn):
-    terms = _split_lower(expr)
-
-    def matches_all_terms(string: str):
-        words = _split_lower(string)
-        return all(_matches_any_word(term, words, match_fn) for term in terms)
-
-    return matches_all_terms
-
-
-def _matches_any_word(term: str, words, match_fn):
-    for word in words:
-        if match_fn(word, term):
-            return True
-    return False
 
 
 def _split_lower(string: str):
@@ -345,3 +351,10 @@ def _make_station_track(station_id: str, station: StationIndex, stream_no: int):
 def _make_artist(name: str):
     uri = str(ArtistUri(make_hash(name)))
     return Artist(uri=uri, name=name)
+
+
+def _union_dicts(dicts: List[dict]):
+    if not dicts:
+        return set()
+    keys = set.union(*[set(d.keys()) for d in dicts])
+    return {key: [d.get(key, set()) for d in dicts] for key in keys}
